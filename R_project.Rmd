@@ -1,0 +1,397 @@
+Prosper_Loan_Data by He Xinyu
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that project end up using
+# in analysis
+library(ggplot2)
+library(GGally)
+library(RColorBrewer)
+library(scales)
+library(memisc)
+library(knitr)
+library(lattice)
+library(MASS)
+```
+
+```{r echo=FALSE, Load_the_Data}
+pld <- read.csv('prosperLoanData.csv',sep = ',',na.strings="")
+pld_sub <- pld[,c(3,5,6,9,13,14,15,17,18,22,47,48,64,77,81)]
+```
+> 因原数据集变量众多，挑选其中的15个变量，约11万条prosper平台贷款记录进行分析。
+
+# Univariate Plots Section
+```{r echo=FALSE, Univariate_Plots}
+dim(pld_sub)
+```
+
+```{r echo=FALSE}
+str(pld_sub)
+```
+```{r echo=FALSE}
+summary(pld_sub)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=BorrowerRate),data = pld_sub)+
+  geom_histogram()
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=BorrowerRate),data = pld_sub)+
+  geom_histogram(binwidth = 0.01)+
+  scale_x_continuous(limits = c(0.05,0.35),breaks = seq(0.05,0.35,0.05))
+```
+
+可以看到利率成正态分布，0.15处有最多的分布，但0.32处有过多的分布。
+
+再考察一些其他变量的分布：
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+pld_sub$ProsperRating..Alpha. <- ordered(pld_sub$ProsperRating..Alpha.,levels=c("HR","E","D","C","B","A","AA"))
+
+ggplot(aes(x=ProsperRating..Alpha.),data = subset(pld_sub,!is.na(ProsperRating..Alpha.)))+
+  geom_bar()
+```
+
+> prosper平台在2009年7月之后上线了新的评级系统，上图按新的评级系统数据所画，因此忽略2009年以前的数据,2009年之前的数据储存在CreditGrade变量中。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(pld_sub$ProsperRating..Alpha.)
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=Term),data = pld_sub)+
+  geom_histogram()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+pld_sub$ListingCategory..numeric. <- factor(pld_sub$ListingCategory..numeric.)
+
+ggplot(aes(x=ListingCategory..numeric.),data = pld_sub)+
+  geom_bar()
+```
+
+> ListingCategory变量是指贷款类型，即借款人贷款的用途，每一个数字对应一种贷款用途，所以同样转变为因子变量。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=BorrowerState),data = pld_sub)+
+  geom_bar()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+pld_sub$IncomeRange <- ordered(pld_sub$IncomeRange,                            levels=c("Not employed","$0","$1-24,999","$25,000-49,999","$50,000-74,999","$75,000-99,999","$100,000+"))
+
+ggplot(aes(x=IncomeRange),data = subset(pld_sub,!is.na(IncomeRange)))+
+  geom_bar()
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=LoanOriginalAmount),data = pld_sub)+
+  geom_histogram()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(pld_sub$LoanOriginalAmount)
+```
+
+创建一个新变量LoanFinalAmount = LoanOriginalAmount*PercentFunded
+借款人最终获得的贷款等于原贷款额乘以满标率，因为可能会出现借款人希望借1万而最终只获得9千的情况。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+pld_sub$LoanFinalAmount <- pld_sub$LoanOriginalAmount*pld_sub$PercentFunded
+
+ggplot(aes(x=LoanFinalAmount),data = pld_sub)+
+  geom_histogram()
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(pld_sub$LoanFinalAmount)
+```
+
+# Univariate Analysis
+### What is the structure of your dataset?
+从原始数据集中选取15个变量，113937个观测记录。其中有序因子有ProsperRating..Alpha.。
+
+(worst) —————-> (best)
+
+ProsperRating..Alpha.：HR,E,D,C,B,A,AA
+
+Other observations:
+
+考察平台的借款期限，平台借款以3年期（36个月）为主。
+
+考察平台的借款用途，0代表数据不可得，可以看到为了用途1（债务合并）而借款的人最多，这很容易解释，因为在美国其他用途的借款均可在其他渠道（如银行、其他信贷公司等）获得，而只有债务合并这一风险较大的贷款类型，较难从其他渠道获取，所以P2P平台上这种类型的借款最多。
+
+考察平台的借款人所在州，CA(加州)借款人尤其多，考虑加州是美国人口最多的州（约为第二名德州的两倍）
+
+平台借款人大多数的收入在25000到75000美元之间，大约处在美国中产阶级偏下的阶层。
+
+探索贷款金额的分布，最高仅为35000美元，全部为小额贷款。
+
+### What is/are the main feature(s) of interest in your dataset?
+
+感兴趣的主要变量是利率（BorrowerRate），是哪些变量导致了每个记录不同的利率？从理论分析上来说，最主要的解释变量应该是信用等级，以及其他的一些变量。
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+从理论上讲，信用等级（ProsperRating..Alpha.）、借款期限（Term）、借款用途（ListingCategory..numeric.）、是否有房产（IsBorrowerHomeowner）、收入、甚至借款金额都有可能影响利率。而满标率（PercentFunded）和投资者人数（Investors）两者应该也是相关的。
+
+### Did you create any new variables from existing variables in the dataset?
+
+创建了一个新变量，最终贷款金额（LoanFinalAmount），比较LoanOriginalAmount和LoanFinalAmount，可以看到新变量的中位数和均值略微变化，但不影响整体的分布情况，说明标的基本都能满标，满标率（PercentFunded）对贷款金额的影响很小。
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+一个略微异常的点是利率（BorrowerRate）在0.32处有过多的分布。
+对数据的调整和改变：将借款用途（ListingCategory..numeric.）转变成了因子变量，因为这个变量虽然用数字表示，但按其定义来说，变量用于分类的意义更大。
+
+
+# Bivariate Plots Section
+```{r echo=FALSE, Bivariate_Plots}
+pld_sub_cor <- pld_sub[,c(2,4,6,11,13,14,15)]
+options(digits=3)
+cor(subset(pld_sub_cor,!is.na(pld_sub_cor$ProsperRating..numeric.)&
+             !is.na(pld_sub_cor$DebtToIncomeRatio)))
+
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+theme_set(theme_minimal(20))
+
+set.seed(2000)
+
+pld_sub_plot <- pld_sub[,c(2,4,5,6,10,11,12,13,14,15)]
+
+ggpairs(pld_sub_plot[sample.int(nrow(pld_sub_plot),1000),])
+```
+
+能够明显看到信用等级（ProsperRating..numeric.）和贷款利率（BorrowerRate）之间存在很强的相关性，而之前分析的其他变量与利率的相关性却较低。
+
+进一步探索：
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=ProsperRating..numeric.,y=BorrowerRate),
+       data = subset(pld_sub,!is.na(ProsperRating..numeric.)))+
+  geom_point()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=ProsperRating..numeric.,y=BorrowerRate),
+       data = subset(pld_sub,!is.na(ProsperRating..numeric.)))+
+  geom_jitter(alpha=1/20)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+fit <- lm(BorrowerRate ~ ProsperRating..numeric., data=pld_sub)
+summary(fit)
+```
+
+根据R^2的值，变量ProsperRating..numeric.（信用等级——数字）可以解释利率91%的变化。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=LoanOriginalAmount,y=BorrowerRate),data = pld_sub)+
+  geom_jitter(alpha=1/20)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=log(LoanOriginalAmount),y=BorrowerRate),data = pld_sub)+
+  geom_jitter(alpha=1/20)
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=DebtToIncomeRatio,y=BorrowerRate),data = subset(pld_sub,!is.na(DebtToIncomeRatio)))+
+  geom_point()
+```
+
+查看其他变量
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=IsBorrowerHomeowner,y=BorrowerRate),data = pld_sub)+
+  geom_boxplot()
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+by(pld_sub$BorrowerRate,pld_sub$IsBorrowerHomeowner,summary)
+```
+
+不出意外，有房产的借款者能够获得利率更低的贷款。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=IncomeRange,y=BorrowerRate),
+       data = subset(pld_sub,!is.na(IncomeRange) & IncomeRange != '$0'))+
+  geom_boxplot()+
+  theme(axis.title.x =element_text(size=8))
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+by(pld_sub$IncomeRange,pld_sub$IncomeRange,summary)
+```
+
+除去收入为0（可能是用户随意填写）和未填写的组外，可以看到未就业的因子水平对应的利率最高，随着收入增加，用户申请贷款的利率越低。
+
+另外，有房产的借款者能够获得更低利率的贷款，其平均数和中位数都低于无房产的借款者。
+而对于借款者的收入范围而言，可以看到收入更高的借款者可以获得更低利率的贷款，而无工作的借款者平均来说需支付最高的利率。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=ListingCategory..numeric.,y=BorrowerRate),data = pld_sub)+
+  geom_boxplot()
+```
+
+不同的借款用途，所对应的利率也是不同的，看来CosmeticProcedure（整容手术？）和Household Expenses（家庭开支）需要最高的贷款利率。虽然可以将借款用途转变为了因子变量，但不是一个有序变量，所以无法查看趋势性变化。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=ProsperRating..numeric.,y=EstimatedReturn),data = pld_sub)+
+  geom_jitter(alpha=1/20)
+```
+
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+与利率相关性最强的变量是信用等级分（ProsperRating..numeric.），两变量之间存在着明显的负相关关系，根据回归后的R^2值，信用等级可以解释91%的利率的变化。
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+信用等级分（ProsperRating..numeric.）和投资者估计所得（EstimatedReturn）也有相关关系，但这种相关关系是因为第三个中间变量利率的存在。
+
+### What was the strongest relationship you found?
+
+如前所述，相关性最强的是信用等级分和利率两个变量之间的关系。
+
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, Multivariate_Plots}
+ggplot(aes(x=BorrowerRate),data = pld_sub)+
+  geom_density(aes(group=IsBorrowerHomeowner, colour=IsBorrowerHomeowner))+
+  scale_color_brewer(type = 'seq',palette = 1)+
+  theme_dark()
+
+```
+
+有房产的更可能获得低利率贷款。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=BorrowerRate),
+       data = subset(pld_sub,!is.na(IncomeRange) & IncomeRange != '$0'))+
+  geom_density(aes(group=IncomeRange, colour=IncomeRange))+
+  scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
+  theme_dark()
+```
+
+更直观的展现了收入越高，越有可能获得低利率贷款。
+
+将多个变量综合进行考虑：
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=LoanOriginalAmount,y=BorrowerRate),data = pld_sub)+
+  geom_point(aes(colour=IncomeRange),size = 1, position = 'jitter')+
+  scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
+  theme_dark()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=LoanOriginalAmount,y=BorrowerRate),data = pld_sub)+
+  facet_wrap(~IsBorrowerHomeowner)+
+  geom_point(aes(colour=IncomeRange),size = 1, position = 'jitter')+
+  scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
+  theme_dark()+
+  ggtitle('Facet Wrap By IsBorrowerHomeowner')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=ProsperRating..numeric.,y=BorrowerRate),data = pld_sub)+
+  geom_point(aes(colour=IncomeRange),size = 1, position = 'jitter')+
+  scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
+  theme_dark()
+```
+
+根据上面的分析建立回归模型：
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+m1 <- lm(BorrowerRate ~ ProsperRating..numeric., data = pld_sub)
+m2 <- update(m1, ~ . + IncomeRange)
+m3 <- update(m2, ~ . + LoanOriginalAmount)
+m4 <- update(m3, ~ . + Term)
+mtable(m1, m2, m3, m4,sdigits=3)
+```
+
+加入其他变量后，R^2仅从0.908上升至0.915，出乎意料的是，之前理论上认为的对利率会有影响的变量，如借款人收入、借款金额、借款期限等变量等的贡献都较低。平台利率的大小几乎依赖与平台信用评分这一个变量。（原始数据有81个变量，说明遗漏了其他的解释变量）
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+密度图更加直观的印证了是否有房产、借款人收入范围等变量对申请贷款利率的影响。有房产且收入高的借款人更有可能获得低利率贷款。但从多变量生成的图来看，这种影响对主要变量（利率）而言并不十分明显。
+
+### Were there any interesting or surprising interactions between features?
+
+在不同收入的利率密度图中，可以看到，除未就业（Notemployed）曲线略微偏移外，各曲线的变化有着明显的一致性。
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+是的。但模型加入其他变量后，R^2仅从0.908上升至0.915，出乎意料的是，之前理论上认为的对利率会有影响的变量，如借款人收入、借款金额、借款期限等变量对利率变化的贡献都较低。平台利率的大小几乎依赖与平台信用评分这一个变量。考虑原始数据有81个变量，说明这次研究遗漏了其他的重要解释变量）
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_One}
+ggplot(aes(x=BorrowerRate),data = pld_sub)+
+  geom_histogram(binwidth = 0.01,color = 'black', fill = '#F79420')+
+  scale_x_continuous(limits = c(0.05,0.35),breaks = seq(0.05,0.35,0.05))+
+  xlab("BorrowerRate") + 
+  ylab("Number of Borrower's listing")+
+  ggtitle("BorrowerRate's Distribution")
+```
+
+> listing 是平台术语，一个listing意为借款人发起的一个借款需求，可理解为一笔买卖，在数据集中是一个记录。
+
+### Description One
+
+利率近似成正态分布，但在0.18,特别是0.32处，分布有些过多。
+
+### Plot Two
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Two}
+ggplot(aes(x=BorrowerRate),
+       data = subset(pld_sub,!is.na(IncomeRange) & IncomeRange != '$0'))+
+  geom_density(aes(group=IncomeRange, colour=IncomeRange))+
+  scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
+  theme_dark()+
+  ylab('Density') + 
+  ggtitle("Density of BorrowerRate by IncomeRange")
+```
+
+> 涉及的变量无单位。
+
+### Description Two
+
+首先，可以看到收入越高的借款人更可能申请到低利率的贷款。
+其次，可以看到，除未就业（Notemployed）曲线略微偏移外，各曲线的变化有着明显的一致性。
+
+### Plot Three
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Three}
+ggplot(aes(x=ProsperRating..numeric.,y=BorrowerRate),data = pld_sub)+
+  geom_point(aes(colour=IncomeRange),size = .5, position = 'jitter')+
+  scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
+  theme_dark()+
+  ggtitle("BorrowerRate by ProsperRating and IncomeRange")
+```
+
+> 涉及的变量均无单位。
+
+### Description Three
+
+随着借款人信用等级的提升，其申请贷款所需利率明显下降了。并且可以看到收入更高的点更多的落在了利率较低处，但这个趋势不是十分明显。
+
+------
+
+# Reflection
+
+本次分析选取prosper平台的11万条贷款数据，原数据共有81个变量，选取其中15个与借款人利率（BorrowerRate）相关的变量进行研究。可以看到，信用等级（ProsperRating）是影响利率最重要的变量。在最终的模型中，选取的解释变量对利率变化的解释程度达到91.5%，结论也基本符合理论和现实的情况。
+
+但出乎意料的是，之前理论上认为的对利率会有影响的变量，如借款人收入、借款金额、借款期限等变量对利率变化的贡献都较低。
+
+这可能说明两点本次研究的问题，一是这些变量可能是与信用等级相关的，当我们考虑信用等级这个变量时，实际已经将这些变量的影响包含了。二是考虑到原始数据有81个变量，说明这次研究遗漏了其他的重要解释变量。
+
+这为后续研究提供了方向。本次研究选取的主要变量是借款人利率（BorrowerRate），此变量可能极度依赖于信用评分，导致本次分析中对其他变量的影响研究不足。未来研究中可进一步选取变量，将分析信用等级作为被解释变量进行进一步分析，考察平台的信用等级分是如何制定的？基于哪些变量？
