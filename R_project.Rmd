@@ -1,3 +1,8 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
 Prosper_Loan_Data by He Xinyu
 ========================================================
 
@@ -18,6 +23,7 @@ library(MASS)
 pld <- read.csv('prosperLoanData.csv',sep = ',',na.strings="")
 pld_sub <- pld[,c(3,5,6,9,13,14,15,17,18,22,47,48,64,77,81)]
 ```
+
 > 因原数据集变量众多，挑选其中的15个变量，约11万条prosper平台贷款记录进行分析。
 
 # Univariate Plots Section
@@ -36,6 +42,7 @@ summary(pld_sub)
 ggplot(aes(x=BorrowerRate),data = pld_sub)+
   geom_histogram()
 ```
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x=BorrowerRate),data = pld_sub)+
   geom_histogram(binwidth = 0.01)+
@@ -61,9 +68,11 @@ table(pld_sub$ProsperRating..Alpha.)
 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x=Term),data = pld_sub)+
-  geom_histogram()
+ggplot(aes(x=as.factor(Term)),data = pld_sub)+
+geom_histogram(stat = "count")
 ```
+
+> Term变量用于分类的意义更大，因此将其转换为分类变量。
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 pld_sub$ListingCategory..numeric. <- factor(pld_sub$ListingCategory..numeric.)
@@ -76,7 +85,8 @@ ggplot(aes(x=ListingCategory..numeric.),data = pld_sub)+
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x=BorrowerState),data = pld_sub)+
-  geom_bar()
+  geom_bar()+
+  theme(axis.text.x = element_text(size = 5))
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -105,6 +115,7 @@ pld_sub$LoanFinalAmount <- pld_sub$LoanOriginalAmount*pld_sub$PercentFunded
 ggplot(aes(x=LoanFinalAmount),data = pld_sub)+
   geom_histogram()
 ```
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 summary(pld_sub$LoanFinalAmount)
 ```
@@ -144,25 +155,21 @@ Other observations:
 ### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
 
 一个略微异常的点是利率（BorrowerRate）在0.32处有过多的分布。
-对数据的调整和改变：将借款用途（ListingCategory..numeric.）转变成了因子变量，因为这个变量虽然用数字表示，但按其定义来说，变量用于分类的意义更大。
+
+对数据的调整和改变：将借款期限（Term）、借款用途（ListingCategory..numeric.）转变成了因子变量，因为这个变量虽然用数字表示，但按其定义来说，变量用于分类的意义更大。
 
 
 # Bivariate Plots Section
-```{r echo=FALSE, Bivariate_Plots}
-pld_sub_cor <- pld_sub[,c(2,4,6,11,13,14,15)]
-options(digits=3)
-cor(subset(pld_sub_cor,!is.na(pld_sub_cor$ProsperRating..numeric.)&
-             !is.na(pld_sub_cor$DebtToIncomeRatio)))
 
-```
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE,message=FALSE,warning=FALSE,fig.width = 15,fig.height = 15}
 theme_set(theme_minimal(20))
 
 set.seed(2000)
 
 pld_sub_plot <- pld_sub[,c(2,4,5,6,10,11,12,13,14,15)]
 
-ggpairs(pld_sub_plot[sample.int(nrow(pld_sub_plot),1000),])
+ggpairs(pld_sub_plot[sample.int(nrow(pld_sub_plot),1000),],
+        upper = list(continuous = wrap("cor", size = 3)))
 ```
 
 能够明显看到信用等级（ProsperRating..numeric.）和贷款利率（BorrowerRate）之间存在很强的相关性，而之前分析的其他变量与利率的相关性却较低。
@@ -170,16 +177,20 @@ ggpairs(pld_sub_plot[sample.int(nrow(pld_sub_plot),1000),])
 进一步探索：
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x=ProsperRating..numeric.,y=BorrowerRate),
-       data = subset(pld_sub,!is.na(ProsperRating..numeric.)))+
-  geom_point()
+ggplot(aes(x=as.factor(ProsperRating..numeric.),y=BorrowerRate),
+    data = subset(pld_sub,!is.na(ProsperRating..numeric.)))+
+    geom_boxplot(alpha = 0.5)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x=ProsperRating..numeric.,y=BorrowerRate),
+ggplot(aes(x=as.factor(ProsperRating..numeric.),y=BorrowerRate),
        data = subset(pld_sub,!is.na(ProsperRating..numeric.)))+
-  geom_jitter(alpha=1/20)
+  geom_jitter(alpha=1/100)+
+  geom_boxplot(alpha = 0.5)
 ```
+
+两变量之间的变化趋势十分明显。
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 fit <- lm(BorrowerRate ~ ProsperRating..numeric., data=pld_sub)
 summary(fit)
@@ -191,6 +202,7 @@ summary(fit)
 ggplot(aes(x=LoanOriginalAmount,y=BorrowerRate),data = pld_sub)+
   geom_jitter(alpha=1/20)
 ```
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x=log(LoanOriginalAmount),y=BorrowerRate),data = pld_sub)+
   geom_jitter(alpha=1/20)
@@ -208,18 +220,20 @@ ggplot(aes(x=DebtToIncomeRatio,y=BorrowerRate),data = subset(pld_sub,!is.na(Debt
 ggplot(aes(x=IsBorrowerHomeowner,y=BorrowerRate),data = pld_sub)+
   geom_boxplot()
 ```
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 by(pld_sub$BorrowerRate,pld_sub$IsBorrowerHomeowner,summary)
 ```
 
 不出意外，有房产的借款者能够获得利率更低的贷款。
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE,message=FALSE,warning=FALSE}
 ggplot(aes(x=IncomeRange,y=BorrowerRate),
        data = subset(pld_sub,!is.na(IncomeRange) & IncomeRange != '$0'))+
   geom_boxplot()+
-  theme(axis.title.x =element_text(size=8))
+  theme(axis.text.x = element_text(size = 8))
 ```
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 by(pld_sub$IncomeRange,pld_sub$IncomeRange,summary)
 ```
@@ -267,7 +281,7 @@ ggplot(aes(x=BorrowerRate),data = pld_sub)+
 
 ```
 
-有房产的更可能获得低利率贷款。
+可以看到有房产的更可能获得低利率贷款。
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x=BorrowerRate),
@@ -282,29 +296,39 @@ ggplot(aes(x=BorrowerRate),
 将多个变量综合进行考虑：
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x=LoanOriginalAmount,y=BorrowerRate),data = pld_sub)+
-  geom_point(aes(colour=IncomeRange),size = 1, position = 'jitter')+
+ggplot(aes(x=LoanOriginalAmount,y=BorrowerRate,colour=IncomeRange),
+       data = pld_sub)+
+  geom_point(alpha = 1/10, position = 'jitter')+
+  geom_smooth(method = "lm", se = FALSE) +
   scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
   theme_dark()
 ```
 
+在有关利率、借款金额、收入范围三变量的图中，除去收入为0（可能是用户未填写）的干扰，趋势线明显显示了收入范围与利率之间的关系，而且可以看到随着借款金额的增加，各收入范围的利率逐渐降低。
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x=LoanOriginalAmount,y=BorrowerRate),data = pld_sub)+
   facet_wrap(~IsBorrowerHomeowner)+
-  geom_point(aes(colour=IncomeRange),size = 1, position = 'jitter')+
+  geom_point(aes(colour=IncomeRange),alpha = 1/5,position = 'jitter')+
+  geom_smooth(method = "lm", se = FALSE) +
   scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
   theme_dark()+
   ggtitle('Facet Wrap By IsBorrowerHomeowner')
 ```
 
+仔细观察可以看到趋势线显示了有房产者的利率较，有房产者的借款者更有可能申请更高的借款金额。
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x=ProsperRating..numeric.,y=BorrowerRate),data = pld_sub)+
-  geom_point(aes(colour=IncomeRange),size = 1, position = 'jitter')+
+  geom_point(aes(colour=IncomeRange),alpha = 1/5, position = 'jitter')+
+  geom_smooth(method = "lm", se = FALSE) +
   scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
   theme_dark()
 ```
 
-根据上面的分析建立回归模型：
+可以看到，更高的收入和信用等级的借款者，可以申请到更低的贷款利率。
+
+根据上面的分析，将信用等级，收入范围、借款金额、借款期限纳入回归模型：
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 m1 <- lm(BorrowerRate ~ ProsperRating..numeric., data = pld_sub)
@@ -373,6 +397,7 @@ ggplot(aes(x=BorrowerRate),
 ```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Three}
 ggplot(aes(x=ProsperRating..numeric.,y=BorrowerRate),data = pld_sub)+
   geom_point(aes(colour=IncomeRange),size = .5, position = 'jitter')+
+  geom_smooth(method = "lm", se = FALSE) +
   scale_color_brewer(type = 'seq',palette = 2,direction = -1)+
   theme_dark()+
   ggtitle("BorrowerRate by ProsperRating and IncomeRange")
